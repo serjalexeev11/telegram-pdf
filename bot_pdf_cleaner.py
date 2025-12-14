@@ -17,7 +17,6 @@ last_file_path = ""
 
 # === START ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📥 /start received from user.")
     await update.message.reply_text(
         "📄 Отправьте PDF файл.\n"
         "✅ Я удалю заголовок (до 'BILL OF LADING'), все номера телефонов и ссылки SuperDispatch.\n"
@@ -32,28 +31,25 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     input_path = f"recv_{file_name}"
     output_path = f"cleaned_{file_name}"
 
-    print(f"📄 Received PDF: {file_name}")
     await document.get_file().download_to_drive(input_path)
 
     doc = fitz.open(input_path)
 
     for page_num, page in enumerate(doc):
-        print(f"📄 Processing page {page_num + 1}...")
-
-        # 🧼 Remove header
+        # Remove header
         areas = page.search_for("BILL OF LADING")
         if areas:
             y_cut = areas[0].y0
             rect = fitz.Rect(0, 0, page.rect.width, y_cut)
             page.add_redact_annot(rect, fill=(1, 1, 1))
 
-        # 🧼 Remove all Phone:
+        # Remove Phone
         phone_areas = page.search_for("Phone:")
         for area in phone_areas:
             redact_box = fitz.Rect(area.x0, area.y0 - 1, area.x1 + 130, area.y1 + 3)
             page.add_redact_annot(redact_box, fill=(1, 1, 1))
 
-        # 🧼 Remove superdispatch.com
+        # Remove superdispatch.com
         link_areas = page.search_for("superdispatch.com")
         for area in link_areas:
             left_margin = 35
@@ -66,29 +62,24 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc.save(output_path)
     doc.close()
 
-    print("🧼 All pages cleaned.")
     last_file_path = output_path
 
-    # ✅ Reply keyboard cu companii
+    # Reply keyboard
     keyboard = [
         ["FMK GROUP INC"],
         ["BM 5 EXPRESS LLC"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    print("📌 Sending keyboard to user")
     await update.message.reply_text("📌 Выберите компанию:", reply_markup=reply_markup)
 
     return CHOICE
 
 # === HANDLE CHOICE ===
 async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text
-    print(f"📌 User selected: {choice}")
-    choice_upper = choice.upper()
-
-    if "FMK" in choice_upper:
+    choice = update.message.text.upper()
+    if "FMK" in choice:
         return await insert_predefined_text(update, context, "FMK")
-    elif "BM" in choice_upper:
+    elif "BM" in choice:
         return await insert_predefined_text(update, context, "BM")
     else:
         await update.message.reply_text("❌ Неизвестный выбор.")
@@ -99,7 +90,6 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
     global last_file_path
 
     if company_key == "FMK":
-        print("✍️ Inserting FMK GROUP INC")
         predefined = (
             "FMK GROUP INC\n"
             "33 E GRAND AVE UNIT 42\n"
@@ -107,8 +97,7 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
             "USDOT:  4252237\n"
             "MC: 1738338"
         )
-    elif company_key == "BM":
-        print("✍️ Inserting BM 5 EXPRESS LLC")
+    else:  # BM
         predefined = (
             "BM 5 EXPRESS LLC\n"
             "3507 COURT ST #1009\n"
@@ -116,33 +105,24 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
             "USDOT: 4252114\n"
             "MC: 1721817"
         )
-    else:
-        await update.message.reply_text("❌ Неизвестная компания.")
-        return ConversationHandler.END
 
     doc = fitz.open(last_file_path)
-    for i, page in enumerate(doc):
-        print(f"✍️ Inserting on page {i + 1}")
+    for page in doc:
         page.insert_text((40, 40), predefined, fontsize=12, color=(0, 0, 0))
 
     final_path = last_file_path.replace("cleaned_", "final_")
     doc.save(final_path)
     doc.close()
 
-    try:
-        with open(final_path, "rb") as f:
-            await update.message.reply_document(document=InputFile(f, filename=final_path))
-            print(f"✅ Sent file: {final_path}")
-        await update.message.reply_text("✅ Файл готов и отправлен.")
-    except Exception as e:
-        print(f"❌ Error sending PDF: {e}")
-        await update.message.reply_text("❌ Не удалось отправить изменённый PDF.")
+    # Send PDF
+    with open(final_path, "rb") as f:
+        await update.message.reply_document(document=InputFile(f, filename=final_path))
+    await update.message.reply_text("✅ Файл готов и отправлен.")
 
-    # Curățare fișiere temporare
+    # Cleanup
     try:
         os.remove(last_file_path)
         os.remove(final_path)
-        print("🗑️ Temporary files removed.")
     except Exception:
         pass
 
@@ -165,9 +145,7 @@ def main():
 
     application.add_handler(conv_handler)
 
-    print("✅ Bot is running with webhook...")
-
-    # === Webhook ===
+    # Start webhook
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,

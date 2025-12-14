@@ -17,9 +17,9 @@ last_file_path = ""
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("📥 /start received from user.")
     await update.message.reply_text(
-        "📄 Trimite un fișier PDF.\n"
-        "✅ Voi curăța header-ul (până la 'BILL OF LADING'), toate numerele de telefon și link-urile SuperDispatch.\n"
-        "✏️ Apoi alege informația companiei de inserat pe fiecare pagină."
+        "📄 Отправьте PDF файл.\n"
+        "✅ Я удалю заголовок (до 'BILL OF LADING'), все номера телефонов и ссылки SuperDispatch.\n"
+        "✏️ Затем выберите информацию о компании, которую нужно вставить на каждой странице."
     )
 
 # === HANDLE PDF ===
@@ -74,7 +74,7 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     print("📌 Sending keyboard to user")
-    await update.message.reply_text("📌 Alege compania:", reply_markup=reply_markup)
+    await update.message.reply_text("📌 Выберите компанию:", reply_markup=reply_markup)
 
     return CHOICE
 
@@ -89,7 +89,7 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif "BM" in choice_upper:
         return await insert_predefined_text(update, context, "BM")
     else:
-        await update.message.reply_text("❌ Selecție necunoscută.")
+        await update.message.reply_text("❌ Неизвестный выбор.")
         return ConversationHandler.END
 
 # === INSERT PREDEFINED TEXT ON ALL PAGES ===
@@ -115,7 +115,7 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
             "MC: 1721817"
         )
     else:
-        await update.message.reply_text("❌ Companie necunoscută.")
+        await update.message.reply_text("❌ Неизвестная компания.")
         return ConversationHandler.END
 
     doc = fitz.open(last_file_path)
@@ -133,7 +133,7 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
             print(f"✅ Sent file: {final_path}")
     except Exception as e:
         print(f"❌ Error sending PDF: {e}")
-        await update.message.reply_text("❌ Failed to send the modified PDF.")
+        await update.message.reply_text("❌ Не удалось отправить изменённый PDF.")
 
     return ConversationHandler.END
 

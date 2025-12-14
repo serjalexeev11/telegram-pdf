@@ -1,12 +1,12 @@
+import os
 import fitz  # PyMuPDF
 from telegram import Update, InputFile, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
-    Updater, CommandHandler, MessageHandler, Filters,
-    CallbackContext, ConversationHandler
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    ContextTypes, ConversationHandler, filters
 )
 
-# === TOKEN ===
-import os
+# === TOKEN din variabila de mediu ===
 TOKEN = os.getenv("TOKEN")
 
 # === STATES ===
@@ -14,16 +14,16 @@ CHOICE = range(1)
 last_file_path = ""
 
 # === START ===
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("📥 /start received from user.")
-    update.message.reply_text(
-        "📄 Send a PDF file.\n"
-        "✅ I will clean the header (above 'BILL OF LADING'), all 'Phone:' numbers, and SuperDispatch links.\n"
-        "✏️ Then choose the company info to insert on every page."
+    await update.message.reply_text(
+        "📄 Trimite un fișier PDF.\n"
+        "✅ Voi curăța header-ul (până la 'BILL OF LADING'), toate numerele de telefon și link-urile SuperDispatch.\n"
+        "✏️ Apoi alege informația companiei de inserat pe fiecare pagină."
     )
 
 # === HANDLE PDF ===
-def handle_pdf(update: Update, context: CallbackContext):
+async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global last_file_path
     document = update.message.document
     file_name = document.file_name
@@ -31,7 +31,7 @@ def handle_pdf(update: Update, context: CallbackContext):
     output_path = f"cleaned_{file_name}"
 
     print(f"📄 Received PDF: {file_name}")
-    document.get_file().download(input_path)
+    await document.get_file().download_to_drive(input_path)
 
     doc = fitz.open(input_path)
 
@@ -48,12 +48,7 @@ def handle_pdf(update: Update, context: CallbackContext):
         # 🧼 Remove all Phone:
         phone_areas = page.search_for("Phone:")
         for area in phone_areas:
-            redact_box = fitz.Rect(
-                area.x0,
-                area.y0 - 1,
-                area.x1 + 130,
-                area.y1 + 3
-            )
+            redact_box = fitz.Rect(area.x0, area.y0 - 1, area.x1 + 130, area.y1 + 3)
             page.add_redact_annot(redact_box, fill=(1, 1, 1))
 
         # 🧼 Remove superdispatch.com
@@ -61,12 +56,7 @@ def handle_pdf(update: Update, context: CallbackContext):
         for area in link_areas:
             left_margin = 35
             right_margin = 35
-            full_line = fitz.Rect(
-                left_margin,
-                area.y0 - 10,
-                page.rect.width - right_margin,
-                area.y1 + 15
-            )
+            full_line = fitz.Rect(left_margin, area.y0 - 10, page.rect.width - right_margin, area.y1 + 15)
             page.add_redact_annot(full_line, fill=(1, 1, 1))
 
         page.apply_redactions()
@@ -82,26 +72,26 @@ def handle_pdf(update: Update, context: CallbackContext):
         ["BM 5 EXPRESS LLC"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    update.message.reply_text("📌 Choose the company info to insert:", reply_markup=reply_markup)
+    await update.message.reply_text("📌 Alege compania:", reply_markup=reply_markup)
 
     return CHOICE
 
 # === HANDLE CHOICE ===
-def handle_choice(update: Update, context: CallbackContext):
+async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text
     print(f"📌 User selected: {choice}")
     choice_upper = choice.upper()
 
     if "FMK" in choice_upper:
-        return insert_predefined_text(update, context, "FMK")
+        return await insert_predefined_text(update, context, "FMK")
     elif "BM" in choice_upper:
-        return insert_predefined_text(update, context, "BM")
+        return await insert_predefined_text(update, context, "BM")
     else:
-        update.message.reply_text("❌ Unknown selection.")
+        await update.message.reply_text("❌ Selecție necunoscută.")
         return ConversationHandler.END
 
 # === INSERT PREDEFINED TEXT ON ALL PAGES ===
-def insert_predefined_text(update: Update, context: CallbackContext, company_key):
+async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_TYPE, company_key):
     global last_file_path
 
     if company_key == "FMK":
@@ -114,7 +104,7 @@ def insert_predefined_text(update: Update, context: CallbackContext, company_key
             "MC: 1738338"
         )
     elif company_key == "BM":
-        print("✍️ BM 5 EXPRESS LLC")
+        print("✍️ Inserting BM 5 EXPRESS LLC")
         predefined = (
             "BM 5 EXPRESS LLC\n"
             "3507 COURT ST #1009\n"
@@ -123,7 +113,7 @@ def insert_predefined_text(update: Update, context: CallbackContext, company_key
             "MC: 1721817"
         )
     else:
-        update.message.reply_text("❌ Unknown company.")
+        await update.message.reply_text("❌ Companie necunoscută.")
         return ConversationHandler.END
 
     doc = fitz.open(last_file_path)
@@ -137,36 +127,33 @@ def insert_predefined_text(update: Update, context: CallbackContext, company_key
 
     try:
         with open(final_path, "rb") as f:
-            update.message.reply_document(document=InputFile(f, filename=final_path))
+            await update.message.reply_document(document=InputFile(f, filename=final_path))
             print(f"✅ Sent file: {final_path}")
     except Exception as e:
         print(f"❌ Error sending PDF: {e}")
-        update.message.reply_text("❌ Failed to send the modified PDF.")
+        await update.message.reply_text("❌ Failed to send the modified PDF.")
 
     return ConversationHandler.END
 
 # === MAIN ===
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    application = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", start),
-            MessageHandler(Filters.document.pdf, handle_pdf)
+            MessageHandler(filters.Document.PDF, handle_pdf)
         ],
         states={
-            CHOICE: [MessageHandler(Filters.text & ~Filters.command, handle_choice)]
+            CHOICE: [MessageHandler(filters.TEXT & (~filters.COMMAND), handle_choice)]
         },
-        fallbacks=[],
+        fallbacks=[]
     )
 
-    dp.add_handler(conv_handler)
+    application.add_handler(conv_handler)
 
     print("✅ Bot is running. Waiting for PDF files...")
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
-

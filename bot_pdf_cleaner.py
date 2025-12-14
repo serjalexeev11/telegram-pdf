@@ -1,6 +1,6 @@
 import os
 import fitz  # PyMuPDF
-from telegram import Update, InputFile, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, InputFile, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     ContextTypes, ConversationHandler, filters
@@ -67,11 +67,13 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("🧼 All pages cleaned.")
     last_file_path = output_path
 
+    # ✅ Reply keyboard cu companii
     keyboard = [
         ["FMK GROUP INC"],
         ["BM 5 EXPRESS LLC"]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    print("📌 Sending keyboard to user")
     await update.message.reply_text("📌 Alege compania:", reply_markup=reply_markup)
 
     return CHOICE

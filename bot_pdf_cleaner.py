@@ -10,7 +10,7 @@ from telegram.ext import (
 TOKEN = os.getenv("TOKEN")
 
 # === STATES ===
-CHOICE = range(1)
+CHOICE = 1
 last_file_path = ""
 
 # === START ===
@@ -131,6 +131,7 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
         with open(final_path, "rb") as f:
             await update.message.reply_document(document=InputFile(f, filename=final_path))
             print(f"✅ Sent file: {final_path}")
+        await update.message.reply_text("✅ Файл готов и отправлен.")
     except Exception as e:
         print(f"❌ Error sending PDF: {e}")
         await update.message.reply_text("❌ Не удалось отправить изменённый PDF.")

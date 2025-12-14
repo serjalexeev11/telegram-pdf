@@ -6,8 +6,10 @@ from telegram.ext import (
     ContextTypes, ConversationHandler, filters
 )
 
-# === TOKEN din variabila de mediu ===
-TOKEN = os.getenv("TOKEN")
+# === TOKEN și Webhook URL din variabile de mediu ===
+TOKEN = os.getenv("TOKEN")  # Telegram bot token
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # ex: https://<subdomain>.up.railway.app
+PORT = int(os.getenv("PORT", "443"))  # Port pentru Railway / container
 
 # === STATES ===
 CHOICE = 1
@@ -136,6 +138,14 @@ async def insert_predefined_text(update: Update, context: ContextTypes.DEFAULT_T
         print(f"❌ Error sending PDF: {e}")
         await update.message.reply_text("❌ Не удалось отправить изменённый PDF.")
 
+    # Curățare fișiere temporare
+    try:
+        os.remove(last_file_path)
+        os.remove(final_path)
+        print("🗑️ Temporary files removed.")
+    except Exception:
+        pass
+
     return ConversationHandler.END
 
 # === MAIN ===
@@ -155,8 +165,15 @@ def main():
 
     application.add_handler(conv_handler)
 
-    print("✅ Bot is running. Waiting for PDF files...")
-    application.run_polling()
+    print("✅ Bot is running with webhook...")
+
+    # === Webhook ===
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()

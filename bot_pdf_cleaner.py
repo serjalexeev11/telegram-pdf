@@ -91,7 +91,7 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_file_path = cleaned_path
         print("🧼 Cleaned PDF:", cleaned_path)
 
-        keyboard = [["FMK GROUP INC"], ["BM 5 EXPRESS LLC"]]
+        keyboard = [["FMK GROUP INC"], ["THE TIME TRANS INC"]]
         await update.message.reply_text(
             "📌 Choose the company info:",
             reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
@@ -123,11 +123,11 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         elif "BM" in text:
             company_text = (
-                "BM 5 EXPRESS LLC\n"
-                "3507 COURT ST #1009\n"
-                "PEKIN, IL 61554\n"
-                "USDOT: 4252114\n"
-                "MC: 1721817"
+                "THE TIME TRANS INC\n"
+                "18 MEADE LN CT UNIT 643\n"
+                "FOX LAKE, IL, 60020\n"
+                "USDOT: 3568201\n"
+                "MC: 1201005"
             )
         else:
             await update.message.reply_text("❌ Unknown selection.")
@@ -194,3 +194,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

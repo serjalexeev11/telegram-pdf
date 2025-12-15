@@ -1,5 +1,6 @@
 import fitz  # PyMuPDF
 import os
+import traceback
 
 from telegram import (
     Update,
@@ -45,51 +46,66 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Please send a PDF file.")
         return ConversationHandler.END
 
-    input_path = f"recv_{file_name}"
-    cleaned_path = f"cleaned_{file_name}"
+    # Folosim folder temporar
+    input_path = f"/tmp/recv_{file_name}"
+    cleaned_path = f"/tmp/cleaned_{file_name}"
 
-    print("⬇️ Downloading:", file_name)
-    tg_file = await document.get_file()
-    await tg_file.download_to_drive(input_path)
+    try:
+        print("⬇️ Downloading:", file_name)
+        tg_file = await document.get_file()
+        await tg_file.download_to_drive(input_path)
 
-    doc = fitz.open(input_path)
+        # Deschidem PDF
+        doc = fitz.open(input_path)
 
-    for page in doc:
-        # Remove header above BILL OF LADING
-        areas = page.search_for("BILL OF LADING")
-        if areas:
-            rect = fitz.Rect(0, 0, page.rect.width, areas[0].y0)
-            page.add_redact_annot(rect, fill=(1, 1, 1))
+        if doc.needs_pass:
+            await update.message.reply_text("❌ PDF is password protected.")
+            return ConversationHandler.END
 
-        # Remove Phone:
-        for area in page.search_for("Phone:"):
-            page.add_redact_annot(
-                fitz.Rect(area.x0, area.y0 - 1, area.x1 + 130, area.y1 + 3),
-                fill=(1, 1, 1),
-            )
+        for page_num, page in enumerate(doc, start=1):
+            print(f"📝 Processing page {page_num} size: {page.rect}")
 
-        # Remove superdispatch.com
-        for area in page.search_for("superdispatch.com"):
-            page.add_redact_annot(
-                fitz.Rect(35, area.y0 - 10, page.rect.width - 35, area.y1 + 15),
-                fill=(1, 1, 1),
-            )
+            # Remove header above BILL OF LADING
+            areas = page.search_for("BILL OF LADING")
+            if areas:
+                rect = fitz.Rect(0, 0, page.rect.width, areas[0].y0)
+                page.add_redact_annot(rect, fill=(1, 1, 1))
 
-        page.apply_redactions()
+            # Remove Phone:
+            for area in page.search_for("Phone:"):
+                page.add_redact_annot(
+                    fitz.Rect(area.x0, area.y0 - 1, area.x1 + 130, area.y1 + 3),
+                    fill=(1, 1, 1),
+                )
 
-    doc.save(cleaned_path)
-    doc.close()
+            # Remove superdispatch.com
+            for area in page.search_for("superdispatch.com"):
+                page.add_redact_annot(
+                    fitz.Rect(35, area.y0 - 10, page.rect.width - 35, area.y1 + 15),
+                    fill=(1, 1, 1),
+                )
 
-    last_file_path = cleaned_path
-    print("🧼 Cleaned PDF:", cleaned_path)
+            page.apply_redactions()
 
-    keyboard = [["FMK GROUP INC"], ["BM 5 EXPRESS LLC"]]
-    await update.message.reply_text(
-        "📌 Choose the company info:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
-    )
+        doc.save(cleaned_path)
+        doc.close()
 
-    return CHOICE
+        last_file_path = cleaned_path
+        print("🧼 Cleaned PDF:", cleaned_path)
+
+        keyboard = [["FMK GROUP INC"], ["BM 5 EXPRESS LLC"]]
+        await update.message.reply_text(
+            "📌 Choose the company info:",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
+        )
+
+        return CHOICE
+
+    except Exception as e:
+        print("❌ ERROR processing PDF:")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Error processing PDF:\n{e}")
+        return ConversationHandler.END
 
 # ================= HANDLE COMPANY CHOICE =================
 async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -122,7 +138,7 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("📂 Opening:", last_file_path)
         doc = fitz.open(last_file_path)
 
-        for page in doc:
+        for page_num, page in enumerate(doc, start=1):
             page.insert_text((40, 40), company_text, fontsize=12, color=(0, 0, 0))
 
         final_path = last_file_path.replace("cleaned_", "final_")
@@ -134,14 +150,11 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 🔹 Trimite PDF-ul (FĂRĂ reply_markup)
         with open(final_path, "rb") as pdf:
             await update.message.reply_document(
-                document=InputFile(
-                    pdf,
-                    filename=os.path.basename(final_path)
-                ),
+                document=InputFile(pdf, filename=os.path.basename(final_path)),
                 mime_type="application/pdf"
             )
 
-        # 🔹 Scoate tastatura separat
+        # 🔹 Scoate tastatura
         await update.message.reply_text(
             "✅ PDF ready",
             reply_markup=ReplyKeyboardRemove()
@@ -154,8 +167,9 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("✅ PDF sent successfully")
 
     except Exception as e:
-        print("❌ ERROR:", e)
-        await update.message.reply_text("❌ Error processing PDF.")
+        print("❌ ERROR:")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Error processing PDF:\n{e}")
 
     return ConversationHandler.END
 

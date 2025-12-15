@@ -19,17 +19,19 @@ from telegram.ext import (
 # ================= CONFIG =================
 TOKEN = os.environ.get("BOT_TOKEN")  # setat în Railway
 CHOICE = 1
+
+# ⚠️ simplu pentru început (1 user o dată)
 last_file_path = ""
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📄 Send a PDF file.\n\n"
-        "✅ I will clean:\n"
-        "- header above 'BILL OF LADING'\n"
-        "- all 'Phone:' numbers\n"
-        "- SuperDispatch links\n\n"
-        "✏️ Then choose the company info to insert."
+        "I will:\n"
+        "• clean header above 'BILL OF LADING'\n"
+        "• remove all 'Phone:' numbers\n"
+        "• remove SuperDispatch links\n\n"
+        "Then choose the company info."
     )
 
 # ================= HANDLE PDF =================
@@ -46,6 +48,7 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     input_path = f"recv_{file_name}"
     cleaned_path = f"cleaned_{file_name}"
 
+    print("⬇️ Downloading:", file_name)
     tg_file = await document.get_file()
     await tg_file.download_to_drive(input_path)
 
@@ -78,10 +81,11 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc.close()
 
     last_file_path = cleaned_path
+    print("🧼 Cleaned PDF:", cleaned_path)
 
     keyboard = [["FMK GROUP INC"], ["BM 5 EXPRESS LLC"]]
     await update.message.reply_text(
-        "📌 Choose the company info to insert:",
+        "📌 Choose the company info:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
     )
 
@@ -91,54 +95,67 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global last_file_path
 
-    text = update.message.text.upper()
-
-    if "FMK" in text:
-        company_text = (
-            "FMK GROUP INC\n"
-            "33 E GRAND AVE UNIT 42\n"
-            "FOX LAKE, IL 60020\n"
-            "USDOT: 4252237\n"
-            "MC: 1738338"
-        )
-    elif "BM" in text:
-        company_text = (
-            "BM 5 EXPRESS LLC\n"
-            "3507 COURT ST #1009\n"
-            "PEKIN, IL 61554\n"
-            "USDOT: 4252114\n"
-            "MC: 1721817"
-        )
-    else:
-        await update.message.reply_text("❌ Unknown selection.")
-        return ConversationHandler.END
-
-    doc = fitz.open(last_file_path)
-    for page in doc:
-        page.insert_text((40, 40), company_text, fontsize=12, color=(0, 0, 0))
-
-    final_path = last_file_path.replace("cleaned_", "final_")
-    doc.save(final_path)
-    doc.close()
-
-    # ================= SEND PDF BACK (CORECT) =================
-    with open(final_path, "rb") as pdf:
-        await update.message.reply_document(
-            document=InputFile(
-                pdf,
-                filename=os.path.basename(final_path)
-            ),
-            mime_type="application/pdf",
-            caption="📄 PDF processed successfully",
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-    # Cleanup (opțional dar recomandat)
     try:
+        text = update.message.text.upper()
+        print("🏢 Selected:", text)
+
+        if "FMK" in text:
+            company_text = (
+                "FMK GROUP INC\n"
+                "33 E GRAND AVE UNIT 42\n"
+                "FOX LAKE, IL 60020\n"
+                "USDOT: 4252237\n"
+                "MC: 1738338"
+            )
+        elif "BM" in text:
+            company_text = (
+                "BM 5 EXPRESS LLC\n"
+                "3507 COURT ST #1009\n"
+                "PEKIN, IL 61554\n"
+                "USDOT: 4252114\n"
+                "MC: 1721817"
+            )
+        else:
+            await update.message.reply_text("❌ Unknown selection.")
+            return ConversationHandler.END
+
+        print("📂 Opening:", last_file_path)
+        doc = fitz.open(last_file_path)
+
+        for page in doc:
+            page.insert_text((40, 40), company_text, fontsize=12, color=(0, 0, 0))
+
+        final_path = last_file_path.replace("cleaned_", "final_")
+        doc.save(final_path)
+        doc.close()
+
+        print("💾 Final PDF:", final_path)
+
+        # 🔹 Trimite PDF-ul (FĂRĂ reply_markup)
+        with open(final_path, "rb") as pdf:
+            await update.message.reply_document(
+                document=InputFile(
+                    pdf,
+                    filename=os.path.basename(final_path)
+                ),
+                mime_type="application/pdf"
+            )
+
+        # 🔹 Scoate tastatura separat
+        await update.message.reply_text(
+            "✅ PDF ready",
+            reply_markup=ReplyKeyboardRemove()
+        )
+
+        # Cleanup
         os.remove(final_path)
         os.remove(last_file_path)
-    except:
-        pass
+
+        print("✅ PDF sent successfully")
+
+    except Exception as e:
+        print("❌ ERROR:", e)
+        await update.message.reply_text("❌ Error processing PDF.")
 
     return ConversationHandler.END
 

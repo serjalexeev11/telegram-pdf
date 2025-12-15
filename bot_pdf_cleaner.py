@@ -121,7 +121,7 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "USDOT: 4252237\n"
                 "MC: 1738338"
             )
-        elif "BM" in text:
+        elif "THE" in text:
             company_text = (
                 "THE TIME TRANS INC\n"
                 "18 MEADE LN CT UNIT 643\n"
@@ -194,4 +194,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

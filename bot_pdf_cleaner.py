@@ -46,7 +46,6 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Please send a PDF file.")
         return ConversationHandler.END
 
-    # Folosim folder temporar
     input_path = f"/tmp/recv_{file_name}"
     cleaned_path = f"/tmp/cleaned_{file_name}"
 
@@ -55,7 +54,6 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tg_file = await document.get_file()
         await tg_file.download_to_drive(input_path)
 
-        # Deschidem PDF
         doc = fitz.open(input_path)
 
         if doc.needs_pass:
@@ -138,7 +136,7 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("📂 Opening:", last_file_path)
         doc = fitz.open(last_file_path)
 
-        for page_num, page in enumerate(doc, start=1):
+        for page in doc:
             page.insert_text((40, 40), company_text, fontsize=12, color=(0, 0, 0))
 
         final_path = last_file_path.replace("cleaned_", "final_")
@@ -147,14 +145,13 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         print("💾 Final PDF:", final_path)
 
-        # 🔹 Trimite PDF-ul (FĂRĂ reply_markup)
+        # Trimite PDF-ul fără mime_type
         with open(final_path, "rb") as pdf:
             await update.message.reply_document(
-                document=InputFile(pdf, filename=os.path.basename(final_path)),
-                mime_type="application/pdf"
+                document=InputFile(pdf, filename=os.path.basename(final_path))
             )
 
-        # 🔹 Scoate tastatura
+        # Scoate tastatura
         await update.message.reply_text(
             "✅ PDF ready",
             reply_markup=ReplyKeyboardRemove()
@@ -167,7 +164,6 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("✅ PDF sent successfully")
 
     except Exception as e:
-        print("❌ ERROR:")
         traceback.print_exc()
         await update.message.reply_text(f"❌ Error processing PDF:\n{e}")
 
